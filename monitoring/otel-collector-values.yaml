@@ -1,0 +1,164 @@
+# OpenTelemetry Collector - DaemonSet 모드
+# 모든 노드에서 실행, 각 노드의 Pod 로그/메트릭/트레이스 수집
+mode: daemonset
+
+config:
+  receivers:
+    # ── OTLP: 앱에서 직접 보내는 트레이스/메트릭 수신 ────────────
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+    # ── Kubernetes 로그 수집 (Nginx, Tomcat Pod 로그) ──────────
+    filelog:
+      include:
+        - /var/log/pods/web_*/*/*.log
+        - /var/log/pods/was_*/*/*.log
+      include_file_path: true
+      operators:
+        - type: router
+          id: get-format
+          routes:
+            - output: parser-docker
+              expr: 'body matches "^\{"'
+            - output: parser-crio
+              expr: 'body matches "^[^ Z]+ "'
+        - type: json_parser
+          id: parser-docker
+        - type: regex_parser
+          id: parser-crio
+          regex: '^(?P<time>[^ Z]+) (?P<stream>stdout|stderr) (?P<logtag>[^ ]*) ?(?P<log>.*)$'
+      resource:
+        k8s.cluster.name: community-eks
+
+    # ── Kubernetes 클러스터 메트릭 ───────────────────────────────
+    k8s_cluster:
+      collection_interval: 30s
+
+    # ── 노드/컨테이너 메트릭 (kubelet stats) ────────────────────
+    kubeletstats:
+      collection_interval: 15s
+      auth_type: serviceAccount
+      endpoint: "${env:K8S_NODE_NAME}:10250"
+      insecure_skip_verify: true
+      metric_groups:
+        - node
+        - pod
+        - container
+
+  processors:
+    # ── 배치 처리 (성능 최적화) ──────────────────────────────────
+    batch:
+      timeout: 5s
+      send_batch_size: 1000
+
+    # ── 메모리 제한 (OOM 방지) ───────────────────────────────────
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 75
+      spike_limit_percentage: 15
+
+    # ── K8s 메타데이터 자동 태깅 ─────────────────────────────────
+    k8sattributes:
+      auth_type: serviceAccount
+      passthrough: false
+      extract:
+        metadata:
+          - k8s.pod.name
+          - k8s.pod.uid
+          - k8s.deployment.name
+          - k8s.namespace.name
+          - k8s.node.name
+        labels:
+          - tag_name: app
+            key: app
+            from: pod
+
+    # ── 리소스 속성 추가 ─────────────────────────────────────────
+    resource:
+      attributes:
+        - action: insert
+          key: cluster
+          value: community-eks
+
+  exporters:
+    # ── Prometheus (메트릭) ───────────────────────────────────────
+    prometheusremotewrite:
+      endpoint: http://kube-prometheus-stack-prometheus.monitoring.svc:9090/api/v1/write
+      tls:
+        insecure: true
+
+    # ── Loki (로그) ───────────────────────────────────────────────
+    loki:
+      endpoint: http://loki.monitoring.svc:3100/loki/api/v1/push
+      default_labels_enabled:
+        exporter: false
+        job: true
+        instance: true
+        level: true
+
+    # ── Tempo (트레이스) ─────────────────────────────────────────
+    otlp/tempo:
+      endpoint: tempo.monitoring.svc:4317
+      tls:
+        insecure: true
+
+    # ── 디버깅용 로그 출력 ────────────────────────────────────────
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, resource, batch]
+        exporters: [otlp/tempo]
+
+      metrics:
+        receivers: [otlp, kubeletstats, k8s_cluster]
+        processors: [memory_limiter, k8sattributes, resource, batch]
+        exporters: [prometheusremotewrite]
+
+      logs:
+        receivers: [otlp, filelog]
+        processors: [memory_limiter, k8sattributes, resource, batch]
+        exporters: [loki]
+
+# ── DaemonSet 권한 설정 ────────────────────────────────────────
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes", "nodes/proxy", "nodes/metrics", "pods", "namespaces"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["deployments", "replicasets"]
+      verbs: ["get", "list", "watch"]
+
+# ── 노드 접근 권한 ─────────────────────────────────────────────
+extraVolumeMounts:
+  - name: varlogpods
+    mountPath: /var/log/pods
+    readOnly: true
+
+extraVolumes:
+  - name: varlogpods
+    hostPath:
+      path: /var/log/pods
+
+env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+
+resources:
+  limits:
+    memory: 512Mi
+    cpu: 250m
+  requests:
+    memory: 128Mi
+    cpu: 100m

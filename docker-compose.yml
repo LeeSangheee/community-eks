@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # MySQL 데이터베이스
+  mysql:
+    image: mysql:8.0
+    container_name: community-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    networks:
+      - community-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Tomcat 애플리케이션 서버
+  tomcat:
+    build: .
+    container_name: community-tomcat
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE}
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./logs:/usr/local/tomcat/logs
+      - ./tomcat-config/context.xml:/usr/local/tomcat/conf/context.xml:ro  # ← 이 줄 추가
+    networks:
+      - community-network
+
+  # Nginx 웹 서버
+  nginx:
+    build: ./nginx
+    container_name: community-nginx
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - tomcat
+    volumes:
+      - ./webapp/css:/usr/share/nginx/html/css:ro
+      - ./webapp/img:/usr/share/nginx/html/img:ro
+    networks:
+      - community-network
+
+volumes:
+  mysql-data:
+
+networks:
+  community-network:
+    driver: bridge

@@ -1,0 +1,51 @@
+# Tempo - 분산 트레이싱
+# OTel Collector → Tempo → Grafana
+
+tempo:
+  storage:
+    trace:
+      backend: local   # 프로덕션에서는 s3
+      # 아래 s3 설정은 terraform/monitoring.tf의 S3 버킷 생성 후 활성화
+      # backend: s3
+      # s3:
+      #   bucket: community-tempo-traces
+      #   region: ap-northeast-2
+      local:
+        path: /var/tempo/traces
+
+  # 트레이스 보존 기간
+  retention: 168h   # 7일
+
+  # OTLP 수신 설정 (OTel Collector에서 보내는 포트)
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  # Grafana Loki와 연동 (트레이스 → 로그 연결)
+  global_override:
+    metrics_generator_processors: [service-graphs, span-metrics]
+
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: http://kube-prometheus-stack-prometheus.monitoring.svc:9090/api/v1/write
+
+persistence:
+  enabled: true
+  storageClassName: gp2
+  size: 20Gi
+
+resources:
+  limits:
+    memory: 1Gi
+    cpu: 500m
+  requests:
+    memory: 256Mi
+    cpu: 100m
+
+serviceAccount:
+  create: true
+  name: tempo

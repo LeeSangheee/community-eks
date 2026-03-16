@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-config
+  namespace: was
+data:
+  DB_HOST: "<DB_HOST>"       # 실제 DB IP 또는 호스트명으로 변경
+  DB_PORT: "3306"
+  DB_NAME: "community"
+

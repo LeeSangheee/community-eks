@@ -1,0 +1,62 @@
+# Loki - 로그 집계
+# OTel Collector → Loki → Grafana
+
+deploymentMode: SingleBinary   # 소규모 클러스터용, 대규모면 Distributed 모드
+
+loki:
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem   # 프로덕션에서는 s3로 변경
+    # 아래 s3 설정은 terraform/monitoring.tf의 S3 버킷 생성 후 활성화
+    # type: s3
+    # s3:
+    #   region: ap-northeast-2
+    #   bucketNames:
+    #     chunks: community-loki-chunks
+    #     ruler: community-loki-ruler
+    #   s3ForcePathStyle: false
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  # 로그 보존 기간
+  limits_config:
+    retention_period: 30d
+    ingestion_rate_mb: 16
+    ingestion_burst_size_mb: 32
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    storageClass: gp2
+    size: 20Gi
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: 500m
+    requests:
+      memory: 256Mi
+      cpu: 100m
+
+# Loki Gateway (HTTP 엔드포인트) 활성화
+gateway:
+  enabled: true
+
+# Grafana Agent 대신 OTel Collector 사용하므로 비활성화
+monitoring:
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false
+test:
+  enabled: false

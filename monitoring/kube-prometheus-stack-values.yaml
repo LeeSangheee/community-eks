@@ -1,0 +1,116 @@
+# kube-prometheus-stack
+# Prometheus + Grafana + Alertmanager + node-exporter + kube-state-metrics 통합 차트
+
+# ── Prometheus ────────────────────────────────────────────────
+prometheus:
+  prometheusSpec:
+    # RemoteWrite 수신 활성화 (OTel Collector → Prometheus)
+    enableRemoteWriteReceiver: true
+
+    retention: 15d
+    retentionSize: 10GB
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 20Gi
+
+    resources:
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+      requests:
+        memory: 512Mi
+        cpu: 250m
+
+    # WAS/Web 네임스페이스 ServiceMonitor 수집 허용
+    serviceMonitorNamespaceSelector:
+      matchLabels: {}
+    podMonitorNamespaceSelector:
+      matchLabels: {}
+
+# ── Grafana ───────────────────────────────────────────────────
+grafana:
+  enabled: true
+  adminPassword: "changeme"   # 실운영에서는 Secret으로 관리
+
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+          isDefault: true
+
+        - name: Loki
+          type: loki
+          url: http://loki.monitoring.svc:3100
+          jsonData:
+            derivedFields:
+              - datasourceUid: Tempo
+                matcherRegex: '"traceId":"(\w+)"'
+                name: TraceID
+                url: '$${__value.raw}'
+
+        - name: Tempo
+          type: tempo
+          url: http://tempo.monitoring.svc:3100
+          uid: Tempo
+
+  # 사전 구성 대시보드
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          folder: Community
+          type: file
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      # JVM 메트릭 대시보드
+      jvm-micrometer:
+        gnetId: 4701
+        revision: 9
+        datasource: Prometheus
+      # Kubernetes 클러스터 개요
+      kubernetes-cluster:
+        gnetId: 7249
+        revision: 1
+        datasource: Prometheus
+      # Nginx Ingress
+      nginx-ingress:
+        gnetId: 9614
+        revision: 1
+        datasource: Prometheus
+
+  persistence:
+    enabled: true
+    storageClassName: gp2
+    size: 5Gi
+
+# ── Alertmanager ──────────────────────────────────────────────
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          resources:
+            requests:
+              storage: 2Gi
+
+# ── Node Exporter (노드 메트릭) ───────────────────────────────
+nodeExporter:
+  enabled: true
+
+# ── Kube State Metrics (K8s 리소스 메트릭) ───────────────────
+kubeStateMetrics:
+  enabled: true

@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: ap-northeast-2
+
+permissions:
+  id-token: write   # OIDC로 AWS 인증
+  contents: write   # 이미지 태그 업데이트 후 커밋
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 1. WAR 빌드 ─────────────────────────────────────────
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'corretto'
+
+      - name: Build WAR
+        run: chmod +x build.sh && ./build.sh
+
+      # ── 2. AWS 인증 (OIDC, 시크릿 없음) ─────────────────────
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ── 3. ECR 로그인 ─────────────────────────────────────────
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ── 4. 이미지 빌드 & 푸시 ──────────────────────────────────
+      - name: Build and push Tomcat image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/com-tomcat:$IMAGE_TAG \
+            -t $ECR_REGISTRY/com-tomcat:latest \
+            .
+          docker push $ECR_REGISTRY/com-tomcat:$IMAGE_TAG
+          docker push $ECR_REGISTRY/com-tomcat:latest
+
+      - name: Build and push Nginx image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/com-nginx:$IMAGE_TAG \
+            -t $ECR_REGISTRY/com-nginx:latest \
+            ./nginx
+          docker push $ECR_REGISTRY/com-nginx:$IMAGE_TAG
+          docker push $ECR_REGISTRY/com-nginx:latest
+
+      # ── 5. K8s manifest 이미지 태그 업데이트 (ArgoCD GitOps) ──
+      - name: Update image tags in manifests
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          sed -i "s|image: ${ECR_REGISTRY}/com-tomcat:.*|image: ${ECR_REGISTRY}/com-tomcat:${IMAGE_TAG}|" \
+            was/tomcat-deployment.yaml
+          sed -i "s|image: ${ECR_REGISTRY}/com-nginx:.*|image: ${ECR_REGISTRY}/com-nginx:${IMAGE_TAG}|" \
+            web/nginx-deployment.yaml
+
+      - name: Commit and push updated manifests
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add was/tomcat-deployment.yaml web/nginx-deployment.yaml
+          git diff --staged --quiet || git commit -m "ci: update image tag to ${IMAGE_TAG}"
+          git push

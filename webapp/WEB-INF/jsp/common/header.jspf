@@ -1,0 +1,104 @@
+<%@ page pageEncoding="UTF-8" contentType="text/html; charset=UTF-8" %>
+<%
+  // 세션 체크
+  Long headerUserId = (Long) session.getAttribute("userId");
+  String headerName = (String) session.getAttribute("name");
+  String headerUsername = (String) session.getAttribute("username");
+  
+  // 로그인 필요한 페이지에서 체크
+  if (headerUserId == null) {
+    response.sendRedirect("/index.jsp");
+    return;
+  }
+  
+  // 이름 기본값 설정
+  if (headerName == null || headerName.isEmpty()) {
+    headerName = (headerUsername != null ? headerUsername : "회원");
+  }
+  
+  // 현재 페이지 파악 (active 표시용)
+  String currentPage = request.getRequestURI();
+  String currentBoard = request.getParameter("name"); // 게시판 파라미터
+%>
+
+<!-- 상단 헤더 -->
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="/home.jsp" aria-label="홈">
+      <img src="/img/aws.avif" alt="AWS" class="aws-logo">
+    </a>
+    <nav class="nav">
+      <a href="/home.jsp" class="<%= currentPage.endsWith("home.jsp") ? "active" : "" %>">홈</a>
+      <a href="#" id="boardMenuBtn" class="<%= currentPage.contains("/board") ? "active" : "" %>">게시판</a>
+      <a href="/timetable" class="<%= currentPage.contains("/timetable") ? "active" : "" %>">시간표</a>
+      <a href="/friends" class="<%= currentPage.contains("/friends") ? "active" : "" %>">친구</a>
+    </nav>
+    <div class="user-area">
+      <span class="who"><strong><%= headerName %></strong>님</span>
+      <a class="btn ghost" href="/logout">로그아웃</a>
+    </div>
+  </div>
+</header>
+
+<!-- 서브 네비게이션 (모든 페이지에서 표시 가능) -->
+<nav class="board-subnav" id="boardSubnav">
+  <div class="wrap sub-inner">
+    <a class="sub-item <%= "notice".equals(currentBoard) ? "active" : "" %>" href="/board?name=notice">공지사항</a>
+    <a class="sub-item <%= "free".equals(currentBoard) ? "active" : "" %>" href="/board?name=free">자유게시판</a>
+    <a class="sub-item <%= "info".equals(currentBoard) ? "active" : "" %>" href="/board?name=info">정보게시판</a>
+    <a class="sub-item <%= "event".equals(currentBoard) ? "active" : "" %>" href="/board?name=event">이벤트</a>
+    <a class="sub-item <%= "qa".equals(currentBoard) ? "active" : "" %>" href="/board?name=qa">Q&amp;A</a>
+    <a class="sub-item <%= "market".equals(currentBoard) ? "active" : "" %>" href="/board?name=market">중고거래</a>
+  </div>
+</nav>
+
+<script>
+(function() {
+  const boardBtn = document.getElementById('boardMenuBtn');
+  const subnav = document.getElementById('boardSubnav');
+  const header = document.querySelector('.site-header');
+  let hideTimeout;
+
+  // 게시판 페이지면 서브메뉴 기본 표시
+  <% if (currentPage.contains("/board")) { %>
+    subnav.classList.add('open');
+  <% } %>
+
+  // 게시판 버튼 클릭 시
+  boardBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    subnav.classList.toggle('open');
+  });
+
+  // 게시판 버튼 호버 시 서브메뉴 표시
+  boardBtn.addEventListener('mouseenter', function() {
+    clearTimeout(hideTimeout);
+    subnav.classList.add('open');
+  });
+
+  // 헤더에서 마우스 벗어날 때
+  header.addEventListener('mouseleave', function() {
+    // 게시판 페이지가 아니면 숨김
+    <% if (!currentPage.contains("/board")) { %>
+      hideTimeout = setTimeout(function() {
+        subnav.classList.remove('open');
+      }, 300);
+    <% } %>
+  });
+
+  // 서브메뉴에 마우스 올릴 때 숨김 취소
+  subnav.addEventListener('mouseenter', function() {
+    clearTimeout(hideTimeout);
+    subnav.classList.add('open');
+  });
+
+  // 서브메뉴에서 마우스 벗어날 때
+  subnav.addEventListener('mouseleave', function() {
+    <% if (!currentPage.contains("/board")) { %>
+      hideTimeout = setTimeout(function() {
+        subnav.classList.remove('open');
+      }, 300);
+    <% } %>
+  });
+})();
+</script>

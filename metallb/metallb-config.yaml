@@ -1,0 +1,25 @@
+# MetalLB IP Pool 설정
+# 용도: LoadBalancer Service에 External IP 할당
+# IP 범위: 10.0.2.200 ~ 10.0.2.220 (21개)
+# 네트워크: VM 네트워크 대역과 동일해야 함
+
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 192.168.1.210-192.168.1.220  # VM 네트워크에 맞게 수정
+---
+# Layer 2 Advertisement
+# ARP를 통해 IP 주소를 광고
+
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - default-pool

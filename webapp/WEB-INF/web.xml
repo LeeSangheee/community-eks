@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0"
+         metadata-complete="true">
+
+  <display-name>ROOT</display-name>
+
+  <!-- JSP 기본 응답 인코딩 -->
+  <context-param>
+    <param-name>jakarta.servlet.jsp.content.type</param-name>
+    <param-value>text/html; charset=UTF-8</param-value>
+  </context-param>
+
+  <!-- 전역 요청 인코딩 필터 (UTF-8) -->
+  <filter>
+    <filter-name>CharacterEncodingFilter</filter-name>
+    <filter-class>org.apache.catalina.filters.SetCharacterEncodingFilter</filter-class>
+    <init-param>
+      <param-name>encoding</param-name>
+      <param-value>UTF-8</param-value>
+    </init-param>
+    <init-param>
+      <param-name>ignore</param-name>
+      <param-value>false</param-value>
+    </init-param>
+  </filter>
+  <filter-mapping>
+    <filter-name>CharacterEncodingFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+  </filter-mapping>
+
+  <!-- 회원가입 -->
+  <servlet>
+    <servlet-name>RegisterServlet</servlet-name>
+    <servlet-class>com.example.RegisterServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>RegisterServlet</servlet-name>
+    <url-pattern>/register</url-pattern>
+  </servlet-mapping>
+
+  <!-- 로그인 -->
+  <servlet>
+    <servlet-name>LoginServlet</servlet-name>
+    <servlet-class>com.example.LoginServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>LoginServlet</servlet-name>
+    <url-pattern>/login</url-pattern>
+  </servlet-mapping>
+
+  <!-- 로그아웃 -->
+  <servlet>
+    <servlet-name>LogoutServlet</servlet-name>
+    <servlet-class>com.example.LogoutServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>LogoutServlet</servlet-name>
+    <url-pattern>/logout</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
+    <servlet-name>BoardServlet</servlet-name>
+    <servlet-class>com.example.BoardServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>BoardServlet</servlet-name>
+    <url-pattern>/board</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
+    <servlet-name>PostServlet</servlet-name>
+    <servlet-class>com.example.PostServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>PostServlet</servlet-name>
+    <url-pattern>/post</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
+    <servlet-name>PostCreateServlet</servlet-name>
+    <servlet-class>com.example.PostCreateServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>PostCreateServlet</servlet-name>
+    <url-pattern>/post/create</url-pattern>
+  </servlet-mapping>
+
+  <!-- 환영 파일 -->
+  <welcome-file-list>
+    <welcome-file>index.jsp</welcome-file>
+  </welcome-file-list>
+
+  <!-- JNDI DataSource 참조 -->
+  <resource-ref>
+    <description>Community DB</description>
+    <res-ref-name>jdbc/community</res-ref-name>
+    <res-type>jakarta.sql.DataSource</res-type>
+    <res-auth>Container</res-auth>
+  </resource-ref>
+
+  <!-- PostLikeServlet -->
+  <servlet>
+    <servlet-name>PostLikeServlet</servlet-name>
+    <servlet-class>com.example.PostLikeServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>PostLikeServlet</servlet-name>
+    <url-pattern>/post/like</url-pattern>
+  </servlet-mapping>
+
+  <!-- PostScrapServlet -->
+  <servlet>
+    <servlet-name>PostScrapServlet</servlet-name>
+    <servlet-class>com.example.PostScrapServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>PostScrapServlet</servlet-name>
+    <url-pattern>/post/scrap</url-pattern>
+  </servlet-mapping>
+
+  <!-- CommentServlet -->
+  <servlet>
+    <servlet-name>CommentServlet</servlet-name>
+    <servlet-class>com.example.CommentServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>CommentServlet</servlet-name>
+    <url-pattern>/comment</url-pattern>
+  </servlet-mapping>
+
+  <!-- CommentDeleteServlet -->
+  <servlet>
+    <servlet-name>CommentDeleteServlet</servlet-name>
+    <servlet-class>com.example.CommentDeleteServlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>CommentDeleteServlet</servlet-name>
+    <url-pattern>/comment/delete</url-pattern>
+  </servlet-mapping>
+</web-app>
