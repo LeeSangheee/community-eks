@@ -23,6 +23,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "loki" {
   rule {
     id     = "expire-old-logs"
     status = "Enabled"
+    filter {}
     expiration {
       days = 30
     }
@@ -41,12 +42,20 @@ resource "aws_s3_bucket" "tempo" {
   }
 }
 
+resource "aws_s3_bucket_versioning" "tempo" {
+  bucket = aws_s3_bucket.tempo.id
+  versioning_configuration {
+    status = "Disabled"
+  }
+}
+
 resource "aws_s3_bucket_lifecycle_configuration" "tempo" {
   bucket = aws_s3_bucket.tempo.id
 
   rule {
     id     = "expire-old-traces"
     status = "Enabled"
+    filter {}
     expiration {
       days = 7
     }

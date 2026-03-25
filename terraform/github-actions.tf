@@ -2,11 +2,6 @@
 # GitHub Actions OIDC 인증
 # AWS 시크릿 없이 GitHub Actions에서 AWS 인증
 # ============================================================
-data "aws_iam_openid_connect_provider" "github" {
-  count = 0   # 이미 존재하면 1로 변경, 신규 생성은 아래 resource 사용
-  url   = "https://token.actions.githubusercontent.com"
-}
-
 resource "aws_iam_openid_connect_provider" "github_actions" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
@@ -31,8 +26,7 @@ resource "aws_iam_role" "github_actions_deploy" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          # 본인 GitHub 레포로 변경
-          "token.actions.githubusercontent.com:sub" = "repo:LeeSangheee/community:*"
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:*"
         }
       }
     }]

@@ -75,3 +75,11 @@ variable "node_max_size" {
   type        = number
   default     = 4
 }
+
+# ---- GitHub Actions ----
+
+variable "github_repo" {
+  description = "GitHub Actions OIDC 허용 레포 (형식: owner/repo)"
+  type        = string
+  default     = "LeeSangheee/community-eks"
+}

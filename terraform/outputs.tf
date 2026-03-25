@@ -37,6 +37,11 @@ output "alb_controller_role_arn" {
   value       = aws_iam_role.alb_controller.arn
 }
 
+output "ebs_csi_role_arn" {
+  description = "EBS CSI Driver IRSA Role ARN"
+  value       = aws_iam_role.ebs_csi.arn
+}
+
 # ---- Monitoring ----
 
 output "loki_s3_bucket" {

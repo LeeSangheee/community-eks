@@ -42,7 +42,7 @@ echo "✅ 라이브러리 준비 완료"
 
 # 3. 컴파일
 echo "3. Java 컴파일..."
-javac -cp "$LIB_DIR/*" \
+javac -cp "$LIB_DIR/jakarta.servlet-api-6.0.0.jar:$LIB_DIR/jakarta.jakartaee-api-10.0.0.jar:$LIB_DIR/mysql-connector-j-8.0.33.jar" \
       -d "$CLASSES_DIR" \
       -encoding UTF-8 \
       $(find "$SRC_DIR" -name "*.java")

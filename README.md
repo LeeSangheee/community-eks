@@ -31,24 +31,36 @@
 
 ---
 
+## 사전 요구사항
+
+| 도구 | 버전 | 비고 |
+|------|------|------|
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 최신 | Docker Compose 포함 |
+| [JDK 17](https://aws.amazon.com/corretto/) | 17 이상 | `build.sh`의 `javac` 컴파일에 필요 |
+| Git Bash (Windows) | — | Windows에서 `.sh` 스크립트 실행에 필요 |
+
+> **Windows 사용자:** 모든 `./script.sh` 명령은 **Git Bash** 터미널에서 실행하세요.
+
+---
+
 ## 빠른 시작
 
 ```bash
 # 1. 저장소 클론
-git clone https://github.com/LeeSangheee/community.git
-cd community
+git clone https://github.com/LeeSangheee/community-eks.git
+cd community-eks
 
 # 2. 환경변수 파일 생성
 cp .env.example .env
-# .env 파일을 열어 비밀번호 등 값 수정
+# .env 파일을 열어 MYSQL_ROOT_PASSWORD, MYSQL_PASSWORD 값 수정 (나머지는 그대로 사용 가능)
 
-# 3. 빌드 (WAR + Docker 이미지)
+# 3. WAR 빌드 (로컬 javac 사용 → build/community.war 생성)
 chmod +x build.sh && ./build.sh
 
-# 4. 전체 스택 실행
+# 4. 전체 스택 실행 (Docker 이미지 빌드 포함, 첫 실행 시 수 분 소요)
 docker-compose up -d
 
-# 5. 상태 확인
+# 5. 상태 확인 (mysql: healthy, tomcat/nginx: running 확인)
 docker-compose ps
 
 # 6. 웹 접속 확인
@@ -56,6 +68,8 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost
 ```
 
 접속: **http://localhost** (Nginx → Tomcat 프록시)
+
+> **주의:** 포트 80이 이미 사용 중이면 `docker-compose.yml`의 nginx ports를 `"8000:80"`으로 변경 후 `http://localhost:8000`으로 접속하세요.
 
 ---
 
@@ -86,6 +100,9 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost
 ### 프로덕션: AWS EKS
 
 ```
+GitHub Actions (CI/CD)
+    │  OIDC → IAM Role → ECR Push + kubectl apply
+    ▼
 Internet
     │
     ▼
@@ -100,11 +117,18 @@ Internet
     ▼
 [MySQL]  was/db_config.yaml + db_secret.yaml
 
+모니터링 (Helm):
+  Prometheus + Grafana  → 메트릭 수집 및 시각화
+  Loki  → 로그 수집 (S3 백엔드)
+  Tempo → 트레이스 수집 (S3 백엔드)
+
 인프라 (Terraform):
   VPC (public/private subnet × 2 AZ)
-  EKS Cluster + Managed Node Group (t3.medium)
+  EKS Cluster + Managed Node Group (t3.medium × 2)
   ECR (com-tomcat, com-nginx)
-  IAM Roles (Cluster, Node, ALB Controller IRSA)
+  IAM Roles (Cluster, Node, ALB Controller, EBS CSI, Loki/Tempo IRSA)
+  GitHub Actions OIDC Provider + Deploy Role
+  S3 버킷 (Loki 로그 30일, Tempo 트레이스 7일 보관)
 ```
 
 | 컴포넌트 | 역할 | 위치 |
@@ -114,9 +138,13 @@ Internet
 | Managed Node Group | 워커 노드 (private subnet) | `terraform/eks.tf` |
 | AWS Load Balancer Controller | ALB Ingress 프로비저닝 | `terraform/alb-controller.tf` |
 | ECR | 컨테이너 이미지 레지스트리 | `terraform/ecr.tf` |
+| GitHub Actions OIDC + IAM Role | CI/CD 파이프라인 권한 (IRSA) | `terraform/github-actions.tf` |
+| S3 (Loki/Tempo) + IRSA | 로그·트레이스 저장소 및 접근 권한 | `terraform/monitoring.tf` |
 | Nginx Deployment + HPA | 정적 자산 서빙 + 리버스 프록시 | `web/` |
 | Tomcat Deployment + HPA | 비즈니스 로직 + WAR 실행 | `was/` |
 | ALB Ingress | 외부 트래픽 → Nginx 라우팅 | `web/web-ingress.yaml` |
+| Prometheus + Grafana | 메트릭 수집 및 시각화 (Helm) | `monitoring/` |
+| Loki + Tempo | 로그·트레이스 수집 (Helm) | `monitoring/` |
 
 ---
 
@@ -166,10 +194,18 @@ community/
 │   ├── variables.tf
 │   ├── outputs.tf
 │   ├── vpc.tf                    # VPC, Subnet, IGW, NAT
-│   ├── eks.tf                    # EKS Cluster, Node Group, IAM
+│   ├── eks.tf                    # EKS Cluster, Node Group, Addon, IRSA
 │   ├── ecr.tf                    # ECR 레포지토리
 │   ├── alb-controller.tf         # ALB Controller IRSA
-│   └── alb-controller-iam-policy.json
+│   ├── alb-controller-iam-policy.json
+│   ├── github-actions.tf         # GitHub Actions OIDC + IAM Role
+│   └── monitoring.tf             # Loki/Tempo S3 버킷 + IRSA
+│
+├── monitoring/                   # 모니터링 스택 (Helm values)
+│   └── ...                       # Prometheus, Grafana, Loki, Tempo
+│
+├── argocd/                       # ArgoCD GitOps 설정
+│   └── ...
 │
 ├── Dockerfile                    # 3-stage 멀티스테이지 빌드
 ├── docker-compose.yml
